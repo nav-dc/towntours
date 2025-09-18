@@ -249,7 +249,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // JSONP submission
     function submitToSheetJSONP(data) {
-        const webAppUrl = "https://script.google.com/macros/s/AKfycbwmOwDblKMZUCMGZQPIjyO_dwrZRe1eesDmBDQEHKZYKsX8fb7FGZTm6DmfeU5eDR4Q/exec"; 
+        const webAppUrl = "https://script.google.com/macros/s/AKfycbxFabVyvKSsG5azgJi1VtM7u_RJQIJpxZ2R3C4rMv7xegYanuuo54Gz4PnmhP0NMZJq/exec"; 
         let url = webAppUrl + "?callback=handleSheetResponse";
         url += "&businessName=" + encodeURIComponent(data.businessName);
         url += "&phone=" + encodeURIComponent(data.phone);
@@ -278,5 +278,6 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 </body>
 </html>
+
 
 
