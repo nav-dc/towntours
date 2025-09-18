@@ -134,48 +134,165 @@
 </div>
 
 <script>
+<script>
 document.addEventListener('DOMContentLoaded', function() {
     const productForm = document.getElementById('product-form');
+    const productList = document.getElementById('product-list');
     const fileInput = document.getElementById('image');
     const fileName = document.getElementById('file-name');
+    const statusFilter = document.getElementById('status-filter');
 
+    let products = [];
+    let currentProductId = null;
+
+    // Load products from localStorage
+    const savedProducts = localStorage.getItem('products');
+    if (savedProducts) {
+        products = JSON.parse(savedProducts);
+        refreshProductList();
+    }
+
+    // File input change event
     fileInput.addEventListener('change', function() {
-        fileName.textContent = this.files.length > 0 ? this.files[0].name : 'No file chosen';
+        if (this.files.length > 0) {
+            fileName.textContent = this.files[0].name;
+        } else {
+            fileName.textContent = 'No file chosen';
+        }
     });
 
+    // Status filter change
+    statusFilter.addEventListener('change', function() {
+        refreshProductList();
+    });
+
+    // Handle form submission
     productForm.addEventListener('submit', function(e) {
         e.preventDefault();
 
-        const businessName = document.getElementById('businessName').value;
-        const phone = document.getElementById('phone').value;
-        const name = document.getElementById('name').value;
+        const businessName = document.getElementById('businessName').value.trim();
+        const phone = document.getElementById('phone').value.trim();
+        const name = document.getElementById('name').value.trim();
         const price = parseFloat(document.getElementById('price').value);
-        const address = document.getElementById('address').value;
-        const description = document.getElementById('description').value;
+        const address = document.getElementById('address').value.trim();
+        const description = document.getElementById('description').value.trim();
 
-        const data = { businessName, phone, name, price, address, description, image: "" };
+        if (!businessName || !phone || !name || !price || !address || !description) {
+            alert('Please fill in all fields.');
+            return;
+        }
 
-        fetch("https://script.google.com/macros/s/AKfycbwkxJ6HMGtGq_o-ViUfieud3666ULsCNB7IvHwHuBkqa-GyBiLgt-fxu2bYM3a6PrYg/exec", { 
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(data)
-        })
-        .then(response => response.json())
-        .then(result => {
-            if(result.result === "success") {
-                alert("Product submitted successfully!");
-                productForm.reset();
-                fileName.textContent = 'No file chosen';
-            } else {
-                alert("Error submitting product");
-            }
-        })
-        .catch(error => {
-            console.error("Error:", error);
-            alert("Error submitting product");
-        });
+        let imageUrl = "https://via.placeholder.com/300x180.png?text=Product+Image"; // Placeholder for image
+
+        const productData = { businessName, phone, name, price, address, description, image: imageUrl };
+
+        // Save locally first
+        addProduct(productData);
+
+        // Submit to Google Sheet via JSONP
+        submitToSheetJSONP(productData);
     });
+
+    function addProduct(productData) {
+        const product = {
+            id: currentProductId || Date.now(),
+            ...productData,
+            status: 'pending',
+            createdAt: new Date().toISOString()
+        };
+
+        if (currentProductId) {
+            const index = products.findIndex(p => p.id === currentProductId);
+            if (index !== -1) products[index] = product;
+            currentProductId = null;
+        } else {
+            products.push(product);
+        }
+
+        saveProducts();
+        refreshProductList();
+        productForm.reset();
+        fileName.textContent = 'No file chosen';
+    }
+
+    function saveProducts() {
+        localStorage.setItem('products', JSON.stringify(products));
+    }
+
+    function refreshProductList() {
+        productList.innerHTML = '';
+        let filtered = products;
+        const filterValue = statusFilter.value;
+        if (filterValue !== 'all') filtered = products.filter(p => p.status === filterValue);
+
+        if (filtered.length === 0) {
+            productList.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-box-open"></i>
+                    <p>No products found</p>
+                </div>
+            `;
+            return;
+        }
+
+        filtered.forEach(p => renderProduct(p));
+    }
+
+    function renderProduct(product) {
+        const createdTime = new Date(product.createdAt).toLocaleString();
+        const card = document.createElement('div');
+        card.className = 'product-card';
+        card.dataset.id = product.id;
+
+        card.innerHTML = `
+            <div class="product-image">
+                <img src="${product.image}" alt="${product.name}">
+            </div>
+            <div class="product-details">
+                <div class="product-info">
+                    <h3 class="product-name">${product.name}</h3>
+                    <div class="product-field"><i class="fas fa-store"></i>${product.businessName}</div>
+                    <div class="product-field"><i class="fas fa-phone"></i>${product.phone}</div>
+                    <div class="product-field"><i class="fas fa-map-marker-alt"></i>${product.address}</div>
+                    <div class="product-price">$${product.price.toFixed(2)}</div>
+                </div>
+                <div class="product-description">${product.description}</div>
+                <div class="product-time">Added: ${createdTime}</div>
+                <div class="product-status status-${product.status}">${product.status}</div>
+            </div>
+        `;
+
+        productList.appendChild(card);
+    }
+
+    // JSONP submission
+    function submitToSheetJSONP(data) {
+        const webAppUrl = "https://script.google.com/macros/s/YOUR_WEB_APP_ID/exec"; // Replace with your Apps Script URL
+        let url = webAppUrl + "?callback=handleSheetResponse";
+        url += "&businessName=" + encodeURIComponent(data.businessName);
+        url += "&phone=" + encodeURIComponent(data.phone);
+        url += "&name=" + encodeURIComponent(data.name);
+        url += "&price=" + encodeURIComponent(data.price);
+        url += "&address=" + encodeURIComponent(data.address);
+        url += "&description=" + encodeURIComponent(data.description);
+        url += "&image=" + encodeURIComponent(data.image || "");
+
+        const script = document.createElement('script');
+        script.src = url;
+        document.body.appendChild(script);
+    }
+
+    // JSONP callback
+    window.handleSheetResponse = function(response) {
+        if (response.result === "success") {
+            alert("Product submitted to Google Sheet successfully!");
+        } else {
+            alert("Error submitting to Google Sheet: " + response.message);
+        }
+    }
 });
+</script>
+
 </script>
 </body>
 </html>
